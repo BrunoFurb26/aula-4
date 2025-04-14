@@ -1,0 +1,73 @@
+---
+title: "Bruno Bertho"
+format: html
+editor: visual
+---
+
+```{r}
+#| label: load-packages #Nomes Unicos
+#| include: false # Nao inclui o resultado no DOC
+
+library(tidyverse) #Pacote ggplot2 (Graficos)
+library(WDI) #Pacote dos dados
+
+#Base de Dados
+#Colocar os Três Objetos de Dados
+
+#Serie Temporal:
+dadospibcze <- WDI(country = 'CZE',
+                   indicator ='NY.GDP.MKTP.CD',
+                  start=1980,end=2018)
+#Corte Temporal:
+dadospopulaçaoHomem <- WDI(country = 'all',
+                           indicator ='SP.POP.TOTL.MA.IN',
+                           start=1994,end=2014)
+#serie em Painel:
+dadosmortenatural <- WDI(country = 'all',
+                         indicator ='SH.DTH.NCOM.ZS',
+                         start=1994,end=2014)
+#Grafico Serie(PIB CZE):
+grafserie <- ggplot(dadospibcze,
+                    mapping = aes(y = NY.GDP.MKTP.CD,
+                                  x = year)) +
+  geom_line()
+print(grafserie)
+#Grafico Painel(MorteNatural)
+grafpainel <- ggplot(dadosmortenatural,
+                     mapping = aes(y = SH.DTH.NCOM.ZS,
+                                   x = year)) +
+  geom_point(na.rm = TRUE)
+print(grafpainel)
+#Grafico Temporal(População Homem)
+grafcorte <- ggplot(dadospopulaçaoHomem,
+                    mapping = aes(y = SP.POP.TOTL.MA.IN,
+                                  x = year)) +
+  geom_col()
+print(grafcorte)
+
+
+```
+
+## Variavel:
+
+Falar sobre sua Variavel:
+
+## Graficos com Dados em Painel
+
+```{r}
+#| label: plot-penguins
+#| warning: false
+#| echo: false
+
+ggplot(penguins, 
+       aes(x = flipper_length_mm, y = bill_length_mm)) +
+  geom_point(aes(color = species, shape = species)) +
+  scale_color_manual(values = c("darkorange","purple","cyan4")) +
+  labs(
+    title = "Flipper and bill length",
+    subtitle = "Dimensions for penguins at Palmer Station LTER",
+    x = "Flipper length (mm)", y = "Bill length (mm)",
+    color = "Penguin species", shape = "Penguin species"
+  ) +
+  theme_minimal()
+```
