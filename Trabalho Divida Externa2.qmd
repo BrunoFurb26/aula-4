@@ -1,0 +1,233 @@
+---
+title: "Evolução da Dívida Externa Mundial"
+format: html
+editor: visual
+---
+
+```{r setup, include=FALSE}
+#| echo: false
+# Este bloco é para configurações globais, se necessário.
+# Vamos garantir que os pacotes sejam carregados aqui e que este bloco não apareça.
+library(tidyverse)
+library(WDI)
+library(dplyr)
+library(ggplot2)
+library(gganimate)
+library(gifski)
+library(ragg)
+
+# Definir ragg como dispositivo gráfico padrão para Quarto
+options(quarto.graphics.device = "ragg_png")
+```
+
+```{r data-processing, include=FALSE}
+#| echo: false
+# Este bloco carrega e processa todos os dados necessários para os gráficos.
+# Ele não produzirá saída visível no documento final.
+
+# Baixar dados do WDI
+TotalDividaExterna <- WDI(country = 'all',
+                          indicator = 'DT.DOD.DECT.CD',
+                          start = 2008, end = 2018,
+                          extra = TRUE)
+
+TotalDividaProcessada <- data.frame()
+if (exists("TotalDividaExterna") && !is.null(TotalDividaExterna) && nrow(TotalDividaExterna) > 0 && "DT.DOD.DECT.CD" %in% colnames(TotalDividaExterna) && "country" %in% colnames(TotalDividaExterna) && "region" %in% colnames(TotalDividaExterna)) {
+  TotalDividaProcessada <- TotalDividaExterna %>%
+    filter(!is.na(DT.DOD.DECT.CD), !is.na(country)) %>% 
+    filter(region != "Aggregates") 
+} else {
+  # Esta mensagem de print não aparecerá no documento final devido ao include=FALSE
+  # print("TotalDividaExterna não possui as colunas necessárias ou não foi criado corretamente para processamento.")
+}
+
+TotalDividaFiltrada <- data.frame()
+if (exists("TotalDividaProcessada") && !is.null(TotalDividaProcessada) && nrow(TotalDividaProcessada) > 0 && "DT.DOD.DECT.CD" %in% colnames(TotalDividaProcessada) && "country" %in% colnames(TotalDividaProcessada)) {
+  TotalDividaFiltrada <- TotalDividaProcessada %>%
+    group_by(country) %>%
+    summarise(divida_total = sum(DT.DOD.DECT.CD, na.rm = TRUE)) %>%
+    arrange(desc(divida_total))
+} 
+
+top8 <- data.frame()
+if (exists("TotalDividaFiltrada") && !is.null(TotalDividaFiltrada) && nrow(TotalDividaFiltrada) > 0) {
+  top8 <- head(TotalDividaFiltrada, 8)
+  if ("country" %in% colnames(TotalDividaFiltrada)) {
+    brasil <- TotalDividaFiltrada %>% filter(country == "Brazil")
+    if (nrow(brasil) > 0 && exists("top8") && !is.null(top8) && "country" %in% colnames(top8) && !("Brazil" %in% top8$country) ) {
+      top8 <- bind_rows(top8, brasil)
+    }
+  }
+}
+
+# Preparar dados para animação do Top 8
+dados_animacao <- data.frame() 
+if(exists("TotalDividaProcessada") && !is.null(TotalDividaProcessada) && nrow(TotalDividaProcessada) > 0){
+  dados_animacao <- TotalDividaProcessada %>%
+    filter(!is.na(DT.DOD.DECT.CD) & !is.na(country) & !is.na(year)) %>%
+    group_by(year, country) %>%
+    summarise(divida_anual = sum(DT.DOD.DECT.CD, na.rm = TRUE), .groups = "drop_last") %>%
+    group_by(year) %>%
+    mutate(rank = rank(-divida_anual, ties.method = "first")) %>%
+    filter(rank <= 8) %>%
+    ungroup()
+} 
+
+# Preparar dados para série temporal do Brasil
+dados_brasil_serie_temporal <- data.frame()
+if(exists("TotalDividaProcessada") && !is.null(TotalDividaProcessada) && nrow(TotalDividaProcessada) > 0){
+  dados_brasil_serie_temporal <- TotalDividaProcessada %>%
+    filter(country == "Brazil" & !is.na(DT.DOD.DECT.CD) & !is.na(year)) %>%
+    arrange(year)
+}
+```
+
+## Introdução
+
+A dívida externa de um país representa o montante de dinheiro que residentes, empresas e o governo devem a credores estrangeiros. Ela pode ser uma ferramenta importante para o financiamento do desenvolvimento, mas também apresenta riscos se não for gerenciada de forma sustentável. Este estudo analisa a evolução da dívida externa de diversos países, com foco nos principais devedores e na trajetória específica do Brasil entre 2008 e 2018, utilizando dados do Banco Mundial.
+
+## Objetivo
+
+O objetivo principal deste trabalho é visualizar e analisar a dinâmica da dívida externa mundial no período de 2008 a 2018. Buscamos identificar os países com os maiores volumes de dívida, observar as tendências de crescimento ou redução dessa dívida ao longo do tempo e destacar a evolução particular da dívida externa brasileira nesse contexto.
+
+## Dados Utilizados
+
+Os dados utilizados nesta análise foram obtidos diretamente do Banco Mundial, através do pacote `WDI` para R. O indicador principal é `DT.DOD.DECT.CD`, que representa a Dívida Externa Total (Stocks of external debt, total) em dólares americanos correntes. O período de análise compreende os anos de 2008 a 2018.
+
+## Metodologia
+
+-   **Fonte dos Dados:** Banco Mundial, via pacote `WDI`.
+-   **Processamento:** Os dados foram filtrados para remover entradas incompletas e agregados regionais. Foram calculados os totais de dívida por país para identificar os principais devedores e preparados dados anuais para as análises de séries temporais e animações.
+-   **Construção dos Gráficos:** Foram utilizados os pacotes `ggplot2` para gráficos estáticos e `gganimate` para as visualizações dinâmicas, ambos no ambiente R. As animações foram salvas como arquivos GIF.
+
+------------------------------------------------------------------------
+
+## Dívida Externa dos Principais Países (2008–2018)
+
+O gráfico a seguir apresenta os oito países com o maior volume acumulado de dívida externa durante o período de 2008 a 2018, incluindo também o Brasil para fins comparativos. Esta visualização estática permite uma rápida identificação dos maiores devedores globais no período analisado.
+
+```{r grafico-estatico-top8, echo=FALSE}
+#| echo: false
+if (exists("top8") && !is.null(top8) && nrow(top8) > 0 && "country" %in% colnames(top8) && "divida_total" %in% colnames(top8)) {
+  ggplot(top8, aes(x = reorder(country, divida_total), y = divida_total / 1e9)) +
+    geom_col(fill = "#2c7fb8", show.legend = FALSE) +
+    coord_flip() +
+    labs(title = "Top 8 Países com Maior Dívida Externa Acumulada (2008–2018) + Brasil",
+         x = "País",
+         y = "Dívida Externa Acumulada (em Bilhões de US$)") +
+    theme_minimal()
+} else {
+  # print("O objeto top8 está vazio ou não foi criado corretamente. O gráfico estático não pode ser gerado.")
+}
+```
+
+------------------------------------------------------------------------
+
+## Evolução Anual da Dívida Externa do Top 8 (2008-2018)
+
+A animação abaixo mostra a evolução ano a ano da dívida externa dos oito países que figuraram consistentemente entre os maiores devedores. Este gráfico de barras animado (bar chart race) permite observar as mudanças no ranking e no volume da dívida de cada país ao longo do período.
+
+```{r animacao-top8, echo=FALSE}
+#| echo: false
+if (exists("dados_animacao") && !is.null(dados_animacao) && nrow(dados_animacao) > 0) { 
+  grafico_animado <- ggplot(dados_animacao, 
+                            aes(x = rank, 
+                                y = divida_anual / 1e9, 
+                                fill = country,
+                                group = country)) +
+    geom_col(width = 0.8, alpha = 0.9, show.legend = FALSE) +
+    geom_text(aes(label = country), 
+              hjust = -0.1, 
+              size = 3.2, 
+              fontface = "bold") +
+    geom_text(aes(label = sprintf("%.1f Bi", divida_anual / 1e9)),
+              hjust = 1.1,  
+              color = "white",
+              size = 3.0) +
+    coord_flip() +
+    labs(title = "Top 8 Países por Dívida Externa: {closest_state}",
+         subtitle = "Dívida Externa Total Anual em Bilhões de US$",
+         x = "",
+         y = "Dívida Externa (Bilhões de US$)") +
+    theme_minimal(base_size = 14) +
+    theme(legend.position = "none",
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor.y = element_blank()) +
+    transition_states(year, 
+                      transition_length = 1, 
+                      state_length = 2,      
+                      wrap = FALSE) +
+    ease_aes("cubic-in-out") +
+    scale_x_reverse()
+
+  num_anos <- length(unique(dados_animacao$year))
+  
+  if(num_anos > 0){ 
+    anim_save("top8_divida_externa_animado_v3.gif", 
+              animation = grafico_animado, 
+              nframes = num_anos * 30, 
+              fps = 20, 
+              width = 800,         
+              height = 600,        
+              units = "px",        
+              res = 96,            
+              renderer = gifski_renderer(),
+              device = "ragg_png"
+    )
+    # print("Animação salva como top8_divida_externa_animado_v3.gif") 
+  } 
+} 
+```
+
+![](top8_divida_externa_animado_v3.gif)
+
+------------------------------------------------------------------------
+
+## Evolução da Dívida Externa do Brasil (2008-2018)
+
+A seguir, apresentamos uma série temporal animada que foca exclusivamente na evolução da dívida externa do Brasil durante o período de 2008 a 2018. Este gráfico de linha permite uma análise detalhada da trajetória da dívida brasileira ano a ano.
+
+```{r animacao-brasil, echo=FALSE}
+#| echo: false
+#| warning: false
+if (exists("dados_brasil_serie_temporal") && !is.null(dados_brasil_serie_temporal) && nrow(dados_brasil_serie_temporal) > 0) {
+  grafico_serie_temporal_brasil_base <- ggplot(dados_brasil_serie_temporal,
+                                          aes(x = year, y = DT.DOD.DECT.CD / 1e9)) +
+    geom_line(color = "#006400", linewidth = 1.2) +
+    geom_point(color = "#006400", size = 3) +
+    scale_y_continuous(labels = scales::dollar_format(prefix = "US$ ", suffix = " Bi")) +
+    scale_x_continuous(breaks = seq(min(dados_brasil_serie_temporal$year, na.rm = TRUE),
+                                     max(dados_brasil_serie_temporal$year, na.rm = TRUE), by = 1)) +
+    labs(title = "Evolução da Dívida Externa do Brasil",
+         subtitle = "Ano: {frame_along}",
+         x = "Ano",
+         y = "Dívida Externa (em Bilhões de US$)") +
+    theme_minimal(base_size = 14) +
+    theme(
+      plot.title = element_text(size = 18, face = "bold"),
+      axis.title = element_text(size = 16),
+      axis.text = element_text(size = 12)
+    )
+
+  grafico_serie_temporal_brasil_animado <- grafico_serie_temporal_brasil_base +
+    transition_reveal(year)
+
+  num_anos_brasil <- length(unique(dados_brasil_serie_temporal$year))
+
+  if(num_anos_brasil > 0){
+    anim_save("divida_brasil_serie_temporal_animado.gif",
+              animation = grafico_serie_temporal_brasil_animado,
+              nframes = num_anos_brasil * 15, 
+              fps = 10,
+              width = 700, height = 500, units = "px", res = 96,
+              renderer = gifski_renderer(), device = "ragg_png")
+    # print("Animação da série temporal do Brasil salva como divida_brasil_serie_temporal_animado.gif")
+  } 
+} 
+```
+
+![](divida_brasil_serie_temporal_animado.gif)
+
+------------------------------------------------------------------------
